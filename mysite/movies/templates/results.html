@@ -1,0 +1,18 @@
+<h1>Results</h1>
+
+<table border="1">
+{% for x in mymovies %}
+<tr>
+<td>{{ x.id }}</td>
+<td>{{ x.title }}</td>
+<td>{{ x.year }}</td>
+<td>{{ x.genre }}</td>
+<td>{{ x.rating }}</td>
+</tr>
+{% endfor %}
+</table>
+
+<form action="goback/" method="post">
+{% csrf_token %}
+<input type="submit" value="Go Back">
+</form>
