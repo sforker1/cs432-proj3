@@ -1,22 +1,21 @@
+from distutils.debug import DEBUG
 from pyspark import SparkContext
 import itertools
-# Web interface?
+import copy
 
-
-# moviesFile = "movies.dat" #"MovieTweetings-master/latest/movies.dat"
-# sc = SparkContext("local", "movies app")
-# moviesData = sc.textFile(moviesFile).cache()
-# numAs = moviesData.filter(lambda s: 'a' in s).count()
-# numBs = moviesData.filter(lambda s: 'b' in s).count()
-# print("Lines with a: %i, lines with b: %i" % (numAs, numBs))
+# TODO All lowercase 
 
 def main():
+    global DEBUG
+    DEBUG = 0
     dataPrep()
     while(True):
         print("1. Find Movie Info")
-        print(".. Add a Movie Rating")
+        # print(".. Add a Movie Rating")
         print("2. Movie Recommendation")
         print("3. Movie Popularity Predictor")
+        print("4. Enable/Disable Debug")
+        print("5. Exit")
         userInput = input("Menu Option: ")
 
         if(userInput == "1"):
@@ -25,13 +24,22 @@ def main():
             movieRec()
         elif(userInput == "3"):
             moviePop()
-        else:
-            print("Incorrect Option")
+        elif(userInput == "4"):
+            if(DEBUG):
+                print("\nDisabled\n")
+                DEBUG = 0
+            else:
+                print("\nEnabled\n")
+                DEBUG = 1
+        elif(userInput == "5"):
             break
+        else:
+            print("\nIncorrect Option\n")
 
 def dataPrep():
     moviesFile = "movies.dat"
     ratingsFile = "ratings.dat"
+    global sc
     sc = SparkContext("local", "movies app")
     moviesData = sc.textFile(moviesFile).cache()
     moviesKey = moviesData.map(lambda x: (x.split("::")[0], (x.split("::")[1].split(" (")[0], x.split("::")[1].split("(")[1][:-1], x.split("::")[2])))
@@ -57,15 +65,14 @@ def dataPrep():
     #filterfinal.foreach(lambda x: print(x))
 
 def findMovie():
+    # TODO
+    # Lowercase
+    # Filter by whole words?
+    # Print if no genre
+
     userInput = input("\nTitle of Movie: ")
     dataRDD = filterfinal
-    # names = dataRDD.map(lambda x: x[0])
-    # names.foreach(lambda x: print(x))
-
-    #uppercase
-    #filter by whole words?
-    #print if no genre
-
+    
     movies = dataRDD.filter(lambda x: userInput in x[0])
     outputCount = movies.count()
     
@@ -93,46 +100,27 @@ def movieRec():
     mappedData = dataRDD.map(lambda x: (x, 0))
 
     ageData = ageEst(mappedData, age)
-    # ageData.foreach(lambda x: print(x))
-
-    # print()
+    if(DEBUG): ageData.foreach(lambda x: print(x))
 
     ratingData = ratingEst(ageData, rating)
-    # ratingData.foreach(lambda x: print(x))
-
-    # print()
+    if(DEBUG): ratingData.foreach(lambda x: print(x))
 
     genreData = genreEst(ratingData, genre)
-    #genreData.foreach(lambda x: print(x))
-
-    #print()
+    if(DEBUG): genreData.foreach(lambda x: print(x))
 
     sentenceData = sentenceEst(genreData, sentence)
-    #sentenceData.foreach(lambda x: print(x))
-
-    #print()
+    if(DEBUG): sentenceData.foreach(lambda x: print(x))
 
     orderedData = sentenceData.sortBy(lambda x: x[1])
 
     recAmt = input("How Many Recommendations Would You Like? ")
 
     recList = orderedData.take(int(recAmt))
+
+    print()
     
     for x in recList:
-        print(x)
-
-    # .foreach(lambda x: print(x))
-
-
-    # tempFunctionList = functionList
-
-    # while(tempFunctionList):
-    #     currentOrder = tempFunctionList.pop()
-
-    #     ageOutcome = ageEst(age)
-    #     # ratingOutcome = 
-
-    #analysis -> order in decsending, prompt user for amt of recommendations
+        print("Title: " + x[0][0] + "\nYear: " + x[0][1] + "\nGenre(s): " + x[0][2] + "\nRating (1-10): " + x[0][3] + "\n")
 
 
 def ageEst(data, age):
@@ -159,6 +147,110 @@ estimationFunc = [ageEst, ratingEst, genreEst, sentenceEst]
 functionList = list(itertools.permutations(estimationFunc))
     
 def moviePop():
-    print("Third")
+    dataRDD = filterfinal
+
+    title = input("Proposed Title: ")
+    # year = input("Year of Release: ")
+    genres = input("Genre(s): ")
+
+    #check if commas
+    titleList = title.split(" ")
+    genreList = genres.split(" ")
+
+    #order combination list by amount of elements, small -> large
+    titleComb = []
+    for x in range(1, len(titleList)+1):
+        medium = [list(y) for y in itertools.combinations(titleList, x)]
+        titleComb.extend(medium)
+    if(DEBUG): print("Title Combo: {}".format(titleComb))
+    
+    holdingRDD = sc.emptyRDD()
+    compareSize = 1
+    ifFirstRun = 1
+    tempTitleComb = copy.deepcopy(titleComb)
+    
+    # Check ordering
+    while(tempTitleComb):
+        comparison = tempTitleComb.pop(0)
+
+        compareString = ""
+        if(len(comparison) > 1):
+            compareString = " ".join(comparison)
+        else:
+            compareString = comparison[0]
+        
+        if(DEBUG): print("compareString is {}".format(compareString))
+
+        tempRDD = dataRDD.filter(lambda x: True if all(y in x[0] for y in compareString) else False)
+        # tempRDD = dataRDD.filter(lambda x: str(compareString) in x)
+        if(DEBUG): tempRDD.foreach(lambda x: print("Temp First: {}".format(x)))
+
+        if(ifFirstRun):
+            holdingRDD = holdingRDD.union(tempRDD)
+            ifFirstRun = 0
+        # What if unioned? for all similar len(comparisons)
+        elif(tempRDD.count() > holdingRDD.count() and len(comparison) == compareSize):
+            holdingRDD = tempRDD
+        elif(tempRDD.count() > 0 and len(comparison) > compareSize):
+            holdingRDD = tempRDD
+
+        compareSize = len(comparison)
+    
+    if(DEBUG): holdingRDD.foreach(lambda x: print("First: {}".format(x)))
+
+
+    holdingRDD1 = sc.emptyRDD()
+    compareSize = 1
+    ifFirstRun = 1
+    tempTitleComb = copy.deepcopy(titleComb)
+
+    # Check amount matching
+    while(tempTitleComb):
+        comparison = tempTitleComb.pop(0)
+
+        tempRDD = dataRDD.filter(lambda x: True if all(y in x[0] for y in comparison) else False)
+        if(DEBUG): tempRDD.foreach(lambda x: print("Temp Second: {}".format(x)))
+
+        if(ifFirstRun):
+            holdingRDD1 = holdingRDD1.union(tempRDD)
+            ifFirstRun = 0
+            if(DEBUG): print("First Run")
+        # What if unioned? for all similar len(comparisons)
+        elif(tempRDD.count() > holdingRDD1.count() and len(comparison) == compareSize):
+            if(DEBUG): print("Second Op")
+            holdingRDD1 = tempRDD
+        elif(tempRDD.count() > 0 and len(comparison) > compareSize):
+            if(DEBUG): print("Third Op")
+            holdingRDD1 = tempRDD
+
+        compareSize = len(comparison)
+
+    if(DEBUG): holdingRDD1.foreach(lambda x: print("Second: {}".format(x)))
+    
+    # Check for all genres
+    genreRDD = dataRDD.filter(lambda x: True if all(y in x[2] for y in genreList) else False)
+    if(DEBUG): genreRDD.foreach(lambda x: print("Third: {}".format(x)))
+
+    holdingRDD = holdingRDD.distinct()
+    holdingRDD1 = holdingRDD1.distinct()
+    genreRDD = genreRDD.distinct()
+
+
+
+    finalRDD = holdingRDD
+    if(finalRDD.intersection(holdingRDD1).count() > 0):
+        finalRDD = finalRDD.intersection(holdingRDD1)
+    
+    if(finalRDD.intersection(genreRDD).count() > 0):
+        finalRDD = finalRDD.intersection(genreRDD)
+    
+    calcRDD = finalRDD.map(lambda x: int(x[3]))
+
+    predictedRating = calcRDD.mean()
+
+    print("\nThe Predicted Rating Is: {0}".format(predictedRating))
+
+    # Data to suggest that Movies involving this style are generally more reviewed and populat
+
 
 main()
