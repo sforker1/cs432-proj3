@@ -3,8 +3,6 @@ from pyspark import SparkContext
 import itertools
 import copy
 
-# TODO All lowercase 
-
 def main():
     global DEBUG
     DEBUG = 0
@@ -42,7 +40,7 @@ def dataPrep():
     global sc
     sc = SparkContext("local", "movies app")
     moviesData = sc.textFile(moviesFile).cache()
-    moviesKey = moviesData.map(lambda x: (x.split("::")[0], (x.split("::")[1].split(" (")[0], x.split("::")[1].split("(")[1][:-1], x.split("::")[2])))
+    moviesKey = moviesData.map(lambda x: (x.split("::")[0], (x.split("::")[1].split(" (")[0].lower(), x.split("::")[1].split("(")[1][:-1], x.split("::")[2].lower())))
     #moviesData.map(lambda x: (x.split("::")[1].split(" (")[0], x.split("::")[1].split("(")[1][:-1], x.split("::")[2]))
     #reduce list by average of same ratings
     
@@ -50,6 +48,14 @@ def dataPrep():
     
     ratingsData = sc.textFile(ratingsFile).cache()
     ratingsKey = ratingsData.map(lambda x: (x.split("::")[1], (x.split("::")[2])))
+    tempTuple = (0,0)
+    tempRDD = ratingsKey.aggregateByKey(tempTuple, lambda a,b: (int(a[0]) + int(b), int(a[1]) + 1), lambda a,b: (int(a[0]) + int(b[0]), int(a[1]) + int(b[1])))
+    finalResult = tempRDD.mapValues(lambda x: x[0] / x[1])
+    # finalResult.foreach(lambda x: print(x))
+    ratingsKey = finalResult.map(lambda x: (x[0], str(x[1])))
+    # ratingsKey.foreach(lambda x: print(x))
+    #ratingsKey = ratingsKey.groupByKey().mapValues(lambda x: sum(int(x[1])) / len(int(x[1])))
+    #print("COUNT {}".format(ratingsKey.count()))
     #combined = moviesKey.union(ratingsKey).reduceByKey(_ + _) #.reduceByKey(lambda x,y: x+y)
     # combine = moviesKey.join(ratingsKey).map(lambda x,y: x ++ y)
     # rdd3 = rdd2.keys()
@@ -66,11 +72,10 @@ def dataPrep():
 
 def findMovie():
     # TODO
-    # Lowercase
     # Filter by whole words?
     # Print if no genre
 
-    userInput = input("\nTitle of Movie: ")
+    userInput = input("\nTitle of Movie: ").lower()
     dataRDD = filterfinal
     
     movies = dataRDD.filter(lambda x: userInput in x[0])
@@ -93,6 +98,9 @@ def movieRec():
     rating = input("Estimated Rating (1-10): ") 
     genre = input("Genre (Short|Action|Adventure|Comedy|Fantasy|Sci-Fi): ")
     sentence = input("Some Words to Describe Movie: ")
+
+    sentence = sentence.lower()
+    genre = genre.lower()
 
     dataRDD = filterfinal
 
@@ -124,11 +132,11 @@ def movieRec():
 
 
 def ageEst(data, age):
-    newData = data.map(lambda x: (x[0], x[1] + (abs(int(x[0][1]) - int(age)) * 5)))
+    newData = data.map(lambda x: (x[0], x[1] + (abs(int(float(x[0][1])) - int(float(age))) * 5)))
     return newData
 
 def ratingEst(data, rating):
-    newData = data.map(lambda x: (x[0], x[1] + (abs(int(x[0][3]) - int(rating)) * 10)))
+    newData = data.map(lambda x: (x[0], x[1] + (abs(int(float(x[0][3])) - int(float(rating))) * 10)))
     return newData
 
 def genreEst(data, genre):
@@ -152,6 +160,9 @@ def moviePop():
     title = input("Proposed Title: ")
     # year = input("Year of Release: ")
     genres = input("Genre(s): ")
+
+    title = title.lower()
+    genres = genres.lower()
 
     #check if commas
     titleList = title.split(" ")
@@ -231,11 +242,10 @@ def moviePop():
     genreRDD = dataRDD.filter(lambda x: True if all(y in x[2] for y in genreList) else False)
     if(DEBUG): genreRDD.foreach(lambda x: print("Third: {}".format(x)))
 
+
     holdingRDD = holdingRDD.distinct()
     holdingRDD1 = holdingRDD1.distinct()
     genreRDD = genreRDD.distinct()
-
-
 
     finalRDD = holdingRDD
     if(finalRDD.intersection(holdingRDD1).count() > 0):
@@ -244,7 +254,7 @@ def moviePop():
     if(finalRDD.intersection(genreRDD).count() > 0):
         finalRDD = finalRDD.intersection(genreRDD)
     
-    calcRDD = finalRDD.map(lambda x: int(x[3]))
+    calcRDD = finalRDD.map(lambda x: int(float(x[3])))
 
     predictedRating = calcRDD.mean()
 
