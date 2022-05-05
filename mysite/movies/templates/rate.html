@@ -1,0 +1,12 @@
+<h1>Rate Movie</h1>
+
+<form action="ratemovie/" method="post">
+{% csrf_token %}
+Title:<br>
+<input name="title">
+<br><br>
+Genre(s):<br>
+<input name="genres">
+<br><br>
+<input type="submit" value="Submit">
+</form>

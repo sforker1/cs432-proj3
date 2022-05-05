@@ -1,0 +1,18 @@
+<h1>Recommend Movie</h1>
+
+<form action="recmovie/" method="post">
+{% csrf_token %}
+Year:<br>
+<input name="year">
+<br><br>
+Rating (1-10):<br>
+<input name="rating">
+<br><br>
+Genre(s):<br>
+<input name="genre">
+<br><br>
+Sentence:<br>
+<input name="sentence">
+<br><br>
+<input type="submit" value="Submit">
+</form>
